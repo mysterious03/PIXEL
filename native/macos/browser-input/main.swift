@@ -1,0 +1,614 @@
+// browser-input — macOS OS-level mouse/keyboard driver for Browser Agent.
+//
+// Posts CGEvents at the HID-system level so the input is indistinguishable
+// from a real mouse/keyboard to the in-page JavaScript world. Requires
+// Accessibility permission for the calling process (Terminal, Node, etc.) in
+// System Settings → Privacy & Security → Accessibility.
+//
+// Reads newline-delimited JSON commands on stdin, writes newline-delimited
+// JSON responses on stdout. This avoids per-action process spawn overhead.
+//
+// Command shape:
+//   { "id": "<corr>", "op": "move",   "x": 412, "y": 287,
+//                     "speedPxPerSec": 1400, "jitterPx": 2 }
+//   { "id": "<corr>", "op": "click",  "button": "left" }     // at current pos
+//   { "id": "<corr>", "op": "down",   "button": "left" }
+//   { "id": "<corr>", "op": "up",     "button": "left" }
+//   { "id": "<corr>", "op": "type",   "text": "hello",
+//                     "delayMsMin": 25, "delayMsMax": 85 }
+//   { "id": "<corr>", "op": "key",    "key": "Return",
+//                     "modifiers": ["cmd","shift"] }
+//   { "id": "<corr>", "op": "scroll", "dx": 0, "dy": -120 }
+//   { "id": "<corr>", "op": "scrollGesture", "dx": 0, "dy": -400,
+//                     "durationMs": 400, "jitterPx": 3 }
+//   { "id": "<corr>", "op": "pos" }                          // returns cursor
+//   { "id": "<corr>", "op": "ping" }
+//   { "id": "<corr>", "op": "axtrusted" }                    // Accessibility check
+//   { "id": "<corr>", "op": "axprompt" }                     // request Accessibility prompt
+//   { "id": "<corr>", "op": "frontapp" }                     // frontmost app id
+//   { "id": "<corr>", "op": "webarea" }                      // frontmost Chrome web area
+//   { "id": "<corr>", "op": "idle" }                         // real-user input idle
+//   { "id": "<corr>", "op": "raise", "pid": 123 }            // foreground a pid
+//   { "id": "<corr>", "op": "version" }                      // driver build version
+//
+// Response shape:
+//   { "id": "<corr>", "ok": true,  "data": { ... } }
+//   { "id": "<corr>", "ok": false, "error": "..." }
+
+import Foundation
+import CoreGraphics
+import AppKit
+
+// Driver build version. Bump whenever the driver's input behavior changes (e.g.
+// the type/clear settle timing). preflight compares this against the version it
+// expects and rebuilds/re-downloads an outdated binary, so a `git pull` that
+// updates this source actually reaches the running driver. Keep in lockstep with
+// EXPECTED_DRIVER_VERSION in lib/preflight.js and DRIVER_VERSION in the Linux
+// main.c.
+let DRIVER_VERSION = 2
+
+// ─── JSON I/O ────────────────────────────────────────────────────────────────
+
+func writeResponse(_ obj: [String: Any]) {
+    guard let data = try? JSONSerialization.data(withJSONObject: obj, options: []) else { return }
+    FileHandle.standardOutput.write(data)
+    FileHandle.standardOutput.write("\n".data(using: .utf8)!)
+}
+
+func ok(_ id: String, _ data: [String: Any] = [:]) {
+    writeResponse(["id": id, "ok": true, "data": data])
+}
+
+func fail(_ id: String, _ msg: String) {
+    writeResponse(["id": id, "ok": false, "error": msg])
+}
+
+// Reject NaN/±Infinity before they reach the geometry math. Swift traps when
+// converting a non-finite Double to Int (e.g. `Int(ceil(NaN))` in humanMove's
+// step count), which would kill this long-lived helper on a single bad command.
+// A bad coordinate can reach us if the caller's page→screen mapping divides by
+// an undefined viewport metric, so guard at the boundary rather than trust it.
+func finite(_ v: Double?) -> Double? {
+    guard let v = v, v.isFinite else { return nil }
+    return v
+}
+
+// ─── Accessibility geometry ─────────────────────────────────────────────────
+
+func axString(_ el: AXUIElement, _ attr: CFString) -> String? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(el, attr, &value) == .success else { return nil }
+    return value as? String
+}
+
+func axElement(_ el: AXUIElement, _ attr: CFString) -> AXUIElement? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(el, attr, &value) == .success,
+          let v = value,
+          CFGetTypeID(v) == AXUIElementGetTypeID() else { return nil }
+    return (v as! AXUIElement)
+}
+
+func axChildren(_ el: AXUIElement) -> [AXUIElement] {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(el, kAXChildrenAttribute as CFString, &value) == .success else { return [] }
+    return (value as? [AXUIElement]) ?? []
+}
+
+func axPoint(_ el: AXUIElement, _ attr: CFString) -> CGPoint? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(el, attr, &value) == .success,
+          let v = value,
+          CFGetTypeID(v) == AXValueGetTypeID() else { return nil }
+    let axv = v as! AXValue
+    guard AXValueGetType(axv) == .cgPoint else { return nil }
+    var p = CGPoint.zero
+    AXValueGetValue(axv, .cgPoint, &p)
+    return p
+}
+
+func axSize(_ el: AXUIElement, _ attr: CFString) -> CGSize? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(el, attr, &value) == .success,
+          let v = value,
+          CFGetTypeID(v) == AXValueGetTypeID() else { return nil }
+    let axv = v as! AXValue
+    guard AXValueGetType(axv) == .cgSize else { return nil }
+    var s = CGSize.zero
+    AXValueGetValue(axv, .cgSize, &s)
+    return s
+}
+
+func findAXWebArea(in root: AXUIElement, maxNodes: Int = 800) -> AXUIElement? {
+    var queue = [root]
+    var index = 0
+    var seen = 0
+    while index < queue.count && seen < maxNodes {
+        let el = queue[index]
+        index += 1
+        seen += 1
+        if axString(el, kAXRoleAttribute as CFString) == "AXWebArea" { return el }
+        queue.append(contentsOf: axChildren(el))
+    }
+    return nil
+}
+
+func frontmostWebAreaFrame() -> [String: Any]? {
+    guard let app = NSWorkspace.shared.frontmostApplication,
+          let bundleId = app.bundleIdentifier,
+          bundleId.hasPrefix("com.google.Chrome") || bundleId == "org.chromium.Chromium" else {
+        return nil
+    }
+
+    let axApp = AXUIElementCreateApplication(app.processIdentifier)
+    let window = axElement(axApp, kAXFocusedWindowAttribute as CFString)
+              ?? axElement(axApp, kAXMainWindowAttribute as CFString)
+    guard let root = window, let webArea = findAXWebArea(in: root),
+          let p = axPoint(webArea, kAXPositionAttribute as CFString),
+          let s = axSize(webArea, kAXSizeAttribute as CFString),
+          p.x.isFinite, p.y.isFinite, s.width.isFinite, s.height.isFinite,
+          s.width > 0, s.height > 0 else {
+        return nil
+    }
+
+    // AXWebArea is the rendered page viewport, so its top-left replaces the
+    // inferred Chrome toolbar offset in the JS coordinate mapper.
+    return ["x": p.x, "y": p.y, "width": s.width, "height": s.height,
+            "bundleId": bundleId, "source": "macos-ax-webarea"]
+}
+
+// ─── Mouse ───────────────────────────────────────────────────────────────────
+
+func currentMousePos() -> CGPoint {
+    return NSEvent.mouseLocation.flippedToCG()
+}
+
+extension NSPoint {
+    // NSEvent.mouseLocation is in AppKit coords (origin bottom-left).
+    // CGEvent uses Quartz coords (origin top-left).
+    func flippedToCG() -> CGPoint {
+        guard let screen = NSScreen.screens.first else { return CGPoint(x: x, y: y) }
+        return CGPoint(x: x, y: screen.frame.height - y)
+    }
+}
+
+func cgButton(_ name: String) -> CGMouseButton {
+    switch name {
+    case "right":  return .right
+    case "center", "middle": return .center
+    default:       return .left
+    }
+}
+
+func mouseEventType(_ button: CGMouseButton, down: Bool) -> CGEventType {
+    switch button {
+    case .right:  return down ? .rightMouseDown : .rightMouseUp
+    case .center: return down ? .otherMouseDown : .otherMouseUp
+    default:      return down ? .leftMouseDown  : .leftMouseUp
+    }
+}
+
+// Tracks whether the left button is currently held. While it is, motion must be
+// posted as `.leftMouseDragged` (not `.mouseMoved`) or apps won't extend a text
+// selection / drag — a plain move with the button down is ignored as a gesture.
+var leftButtonDown = false
+
+// Monotonic clock (unaffected by wall-clock adjustments), in seconds.
+func monoNowSecs() -> Double {
+    return Double(DispatchTime.now().uptimeNanoseconds) / 1_000_000_000
+}
+
+// Timestamp of the last input event WE injected. The agent posts events to the
+// HID event tap, so they're indistinguishable from real hardware via
+// secondsSinceLastEventType. The `idle` op compares the system's last-event time
+// against this to tell the user's input apart from the agent's own. 0 = never.
+var lastSelfInputMono: Double = 0
+func markSelfInput() { lastSelfInputMono = monoNowSecs() }
+
+func postMouseMove(to p: CGPoint) {
+    let type: CGEventType = leftButtonDown ? .leftMouseDragged : .mouseMoved
+    let ev = CGEvent(mouseEventSource: nil, mouseType: type,
+                     mouseCursorPosition: p, mouseButton: .left)
+    ev?.post(tap: .cghidEventTap)
+}
+
+func postMouseButton(_ button: CGMouseButton, down: Bool, at p: CGPoint, clickCount: Int64 = 1) {
+    let type = mouseEventType(button, down: down)
+    let ev = CGEvent(mouseEventSource: nil, mouseType: type,
+                     mouseCursorPosition: p, mouseButton: button)
+    ev?.setIntegerValueField(.mouseEventClickState, value: clickCount)
+    ev?.post(tap: .cghidEventTap)
+}
+
+// Humanlike mouse motion. A teleport — `CGEvent(... mouseMoved ...)` posted
+// once at the target — is the canonical bot tell. Instead we:
+//
+//   1. Build a cubic Bezier from current → target with two control points
+//      offset perpendicular to the straight-line path. Magnitude of the
+//      offset is ~10% of total distance, with a random sign so half the
+//      moves curve "left" of the straight line and half "right". This gives
+//      the path subtle arc-shape variation across clicks.
+//   2. Sample the curve in 60Hz steps for `dist / speedPxPerSec` seconds.
+//      Slow elements (1400 px/s default) take ~250ms to cross 350px — well
+//      inside the human range.
+//   3. Apply ease-in-out timing so the cursor accelerates from rest and
+//      decelerates into the target instead of moving at constant velocity.
+//   4. Add per-frame uniform jitter (`jitterPx`) so consecutive samples
+//      don't sit exactly on the curve.
+//
+// All four ingredients are visible in the trace if a detector logs mouse
+// events — leaving any of them off would fingerprint the agent.
+func humanMove(to target: CGPoint, speedPxPerSec: Double, jitterPx: Double) {
+    let start = currentMousePos()
+    let dx = target.x - start.x
+    let dy = target.y - start.y
+    let dist = sqrt(dx*dx + dy*dy)
+    if dist < 0.5 {
+        // Already there. Single move keeps the cursor's reported position
+        // exact (and avoids dividing by zero below).
+        postMouseMove(to: target)
+        return
+    }
+
+    let speed = max(speedPxPerSec, 50)  // floor prevents accidental hangs
+    let durationMs = (dist / speed) * 1000.0
+    let frameMs: Double = 16.0           // ~60Hz, matches a typical display
+    let steps = max(2, Int(ceil(durationMs / frameMs)))
+
+    // Perpendicular unit vector to the direct path. `(nx, ny) = (-dy, dx)/dist`
+    // rotates the direction vector 90° — moving the control points along this
+    // axis bows the curve sideways without affecting start/end.
+    let nx = -dy / dist
+    let ny = dx / dist
+    let sway = dist * 0.10 * Double.random(in: -1...1)
+    // Cubic Bezier control points at the 1/3 and 2/3 distance marks. The
+    // second point's sway is halved so the curve relaxes back toward the
+    // target — gives a "reach" shape rather than a symmetric arc.
+    let c1 = CGPoint(x: start.x + dx * 0.33 + nx * sway,
+                     y: start.y + dy * 0.33 + ny * sway)
+    let c2 = CGPoint(x: start.x + dx * 0.66 + nx * sway * 0.5,
+                     y: start.y + dy * 0.66 + ny * sway * 0.5)
+
+    for i in 1...steps {
+        let t = Double(i) / Double(steps)
+        // Quadratic ease-in-out: te(0)=0, te(0.5)=0.5, te(1)=1, te'(0)=te'(1)=0.
+        let te = t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t
+        // Cubic Bezier: B(t) = (1-t)³·P₀ + 3(1-t)²·t·P₁ + 3(1-t)·t²·P₂ + t³·P₃
+        let u = 1 - te
+        let bx = u*u*u*start.x + 3*u*u*te*c1.x + 3*u*te*te*c2.x + te*te*te*target.x
+        let by = u*u*u*start.y + 3*u*u*te*c1.y + 3*u*te*te*c2.y + te*te*te*target.y
+        let jx = jitterPx > 0 ? Double.random(in: -jitterPx...jitterPx) : 0
+        let jy = jitterPx > 0 ? Double.random(in: -jitterPx...jitterPx) : 0
+        postMouseMove(to: CGPoint(x: bx + jx, y: by + jy))
+        usleep(useconds_t(frameMs * 1000))
+    }
+    // Final exact-target move so the cursor lands precisely where the
+    // caller asked, regardless of accumulated rounding.
+    postMouseMove(to: target)
+}
+
+// ─── Keyboard ────────────────────────────────────────────────────────────────
+
+// Named-key → CGKeyCode. Covers command/navigation keys plus the letter/digit
+// keys, so the executor can post modifier chords (e.g. Cmd+A to select-all
+// before replacing a field's text, Cmd+C/Cmd+V). Most prose still goes through
+// `type`; these keycodes exist for accelerators, not bulk text entry.
+let NAMED_KEYS: [String: CGKeyCode] = [
+    "return": 0x24, "enter": 0x24,
+    "tab": 0x30,
+    "space": 0x31,
+    "delete": 0x33, "backspace": 0x33,
+    "escape": 0x35, "esc": 0x35,
+    "left": 0x7B, "right": 0x7C, "down": 0x7D, "up": 0x7E,
+    "home": 0x73, "end": 0x77,
+    "pageup": 0x74, "pagedown": 0x79,
+    "f1": 0x7A, "f2": 0x78, "f3": 0x63, "f4": 0x76,
+    "f5": 0x60, "f6": 0x61, "f7": 0x62, "f8": 0x64,
+    "f9": 0x65, "f10": 0x6D, "f11": 0x67, "f12": 0x6F,
+    // Letters (US-ANSI virtual keycodes; layout-independent for accelerators).
+    "a": 0x00, "b": 0x0B, "c": 0x08, "d": 0x02, "e": 0x0E, "f": 0x03,
+    "g": 0x05, "h": 0x04, "i": 0x22, "j": 0x26, "k": 0x28, "l": 0x25,
+    "m": 0x2E, "n": 0x2D, "o": 0x1F, "p": 0x23, "q": 0x0C, "r": 0x0F,
+    "s": 0x01, "t": 0x11, "u": 0x20, "v": 0x09, "w": 0x0D, "x": 0x07,
+    "y": 0x10, "z": 0x06,
+    // Digits.
+    "0": 0x1D, "1": 0x12, "2": 0x13, "3": 0x14, "4": 0x15,
+    "5": 0x17, "6": 0x16, "7": 0x1A, "8": 0x1C, "9": 0x19,
+]
+
+func modifierFlags(_ names: [String]) -> CGEventFlags {
+    var f: CGEventFlags = []
+    for n in names {
+        switch n.lowercased() {
+        case "cmd", "command", "meta": f.insert(.maskCommand)
+        case "shift":                   f.insert(.maskShift)
+        case "alt", "option":           f.insert(.maskAlternate)
+        case "ctrl", "control":         f.insert(.maskControl)
+        case "fn":                      f.insert(.maskSecondaryFn)
+        default: break
+        }
+    }
+    return f
+}
+
+func postKey(_ keyName: String, modifiers: [String]) -> String? {
+    guard let code = NAMED_KEYS[keyName.lowercased()] else {
+        return "unknown key: \(keyName)"
+    }
+    let flags = modifierFlags(modifiers)
+    let down = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: true)
+    let up   = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: false)
+    // The chord fires on key-down (with the modifier flag set); the key-up then
+    // clears the flags, so the modifier never stays asserted in the system's
+    // state. Without this, Cmd+A leaves Command "held", and the characters typed
+    // next are misread as Cmd-chords (new tab, URL bar, DevTools).
+    down?.flags = flags
+    up?.flags = []
+    down?.post(tap: .cghidEventTap)
+    up?.post(tap: .cghidEventTap)
+    return nil
+}
+
+// Type Unicode text. We don't translate characters to keycodes (would require
+// a full per-layout keymap and break for non-US keyboards). Instead each
+// character is sent as a synthetic key event whose payload is the literal
+// UTF-16 string — the same path Apple's IMEs use to commit composed text.
+// AppKit text views and Chrome's renderer both accept it as a "typed"
+// character with timing indistinguishable from a real keystroke.
+func typeText(_ text: String, delayMsMin: Int, delayMsMax: Int) {
+    // Settle before the first keystroke. The preceding focus-click and Cmd+A
+    // select-all need a beat to commit in Chrome and to release the Command
+    // modifier; posting the first char too soon makes it land as a Cmd-chord (or
+    // before focus is committed) and get dropped. The inter-keystroke delay below
+    // only runs *after* each char, so the first one has no cushion without this.
+    usleep(useconds_t(50 * 1000))
+    for ch in text {
+        let s = String(ch)
+        let utf16 = Array(s.utf16)
+        let down = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true)
+        let up   = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false)
+        // Zero the flags so a typed character can never inherit a held modifier.
+        // CGEvents created without explicit flags pick up the current modifier
+        // state, so a preceding chord (e.g. the Cmd+A select-all before a type)
+        // would otherwise make "abc" register as Cmd+A/Cmd+B/Cmd+C — opening tabs,
+        // the URL bar, DevTools. Also guards against a key the user is holding.
+        down?.flags = []
+        up?.flags = []
+        utf16.withUnsafeBufferPointer { buf in
+            down?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: buf.baseAddress)
+            up?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: buf.baseAddress)
+        }
+        down?.post(tap: .cghidEventTap)
+        up?.post(tap: .cghidEventTap)
+        let lo = max(0, min(delayMsMin, delayMsMax))
+        let hi = max(lo, delayMsMax)
+        let d = lo == hi ? lo : Int.random(in: lo...hi)
+        if d > 0 { usleep(useconds_t(d * 1000)) }
+    }
+}
+
+// ─── Scroll ──────────────────────────────────────────────────────────────────
+
+func postScroll(dx: Int32, dy: Int32) {
+    // Pixel-precise scroll wheel event. `wheelCount: 2` to provide both axes.
+    let ev = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
+                     wheel1: dy, wheel2: dx, wheel3: 0)
+    ev?.post(tap: .cghidEventTap)
+}
+
+// Humanlike trackpad-style scroll gesture. Distributes `dy`/`dx` across ~60fps
+// frames with an ease-in-out curve, wrapped in the Began/Changed.../Ended phase
+// sequence Chrome needs to latch onto inner sub-scrollers (overflow:auto divs).
+// Per-frame jitter keeps the delta stream from looking machine-regular.
+func postScrollGesture(dx: Int32, dy: Int32, durationMs: Double, jitterPx: Double) {
+    let frameMs: Double = 16.0
+    let steps = max(3, Int(ceil(durationMs / frameMs)))
+
+    func easeInOut(_ t: Double) -> Double {
+        t < 0.5 ? 2*t*t : -1 + (4-2*t)*t
+    }
+    func make(_ phase: Int64, _ w1: Int32, _ w2: Int32) -> CGEvent? {
+        let e = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
+                        wheel1: w1, wheel2: w2, wheel3: 0)
+        e?.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
+        return e
+    }
+
+    // kCGScrollPhaseBegan = 1, kCGScrollPhaseChanged = 2, kCGScrollPhaseEnded = 4
+    make(1, 0, 0)?.post(tap: .cghidEventTap)
+    usleep(useconds_t(frameMs * 1000))
+
+    var prev: Double = 0
+    for i in 1...steps {
+        let cur = easeInOut(Double(i) / Double(steps))
+        var dw1 = Double(dy) * (cur - prev)
+        var dw2 = Double(dx) * (cur - prev)
+        prev = cur
+        if jitterPx > 0 {
+            dw1 += Double.random(in: -jitterPx...jitterPx)
+            dw2 += Double.random(in: -jitterPx...jitterPx)
+        }
+        make(2, Int32(dw1.rounded()), Int32(dw2.rounded()))?.post(tap: .cghidEventTap)
+        usleep(useconds_t(frameMs * 1000))
+    }
+
+    // Zero-delta flush: guarantees Chrome's fling-velocity sample window ends at
+    // zero regardless of ease-in-out shape, preventing kinetic scroll after Ended.
+    make(2, 0, 0)?.post(tap: .cghidEventTap)
+    usleep(useconds_t(frameMs * 1000))
+    make(4, 0, 0)?.post(tap: .cghidEventTap)
+}
+
+// ─── Dispatch ────────────────────────────────────────────────────────────────
+
+func handle(_ cmd: [String: Any]) {
+    let id = (cmd["id"] as? String) ?? ""
+    guard let op = cmd["op"] as? String else { fail(id, "missing op"); return }
+
+    switch op {
+    case "ping":
+        ok(id, ["pong": true])
+
+    case "version":
+        // Build version, so preflight can detect an outdated binary and refresh
+        // it (an older binary without this op replies ok:false → treated as v0).
+        ok(id, ["version": DRIVER_VERSION])
+
+    case "axtrusted":
+        // Reports whether this process holds Accessibility permission. Without
+        // it, CGEvent posting silently no-ops, so setup probes this up front.
+        ok(id, ["trusted": AXIsProcessTrusted()])
+
+    case "axprompt":
+        // Ask macOS to show the Accessibility consent prompt for this process.
+        // The user still has to approve it in System Settings; TCC cannot be
+        // bypassed programmatically.
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        ok(id, ["trusted": AXIsProcessTrustedWithOptions(options)])
+
+    case "frontapp":
+        // The frontmost (foreground) app. The executor checks this before every
+        // input op: CGEvents go to whatever app is in front, so if focus left
+        // Chrome we must abort rather than click/type into another application.
+        let app = NSWorkspace.shared.frontmostApplication
+        ok(id, ["bundleId": app?.bundleIdentifier ?? "", "name": app?.localizedName ?? ""])
+
+    case "webarea":
+        if let frame = frontmostWebAreaFrame() {
+            ok(id, frame)
+        } else {
+            fail(id, "frontmost Chrome AXWebArea not found")
+        }
+
+    case "raise":
+        // Bring a specific process to the foreground by PID. Permission-free
+        // (NSRunningApplication.activate needs no Accessibility/Automation grant)
+        // and PID-targeted, so preflight can foreground the browser-agent Chrome
+        // without grabbing a different Chrome instance (e.g. a personal one).
+        guard let pid = (cmd["pid"] as? NSNumber)?.int32Value else { fail(id, "raise requires pid"); return }
+        if let app = NSRunningApplication(processIdentifier: pid) {
+            app.activate(options: [.activateAllWindows])
+            ok(id, ["raised": true])
+        } else {
+            ok(id, ["raised": false])   // no live app for that pid — caller treats as best-effort
+        }
+
+    case "pos":
+        let p = currentMousePos()
+        ok(id, ["x": p.x, "y": p.y])
+
+    case "move":
+        guard let x = finite((cmd["x"] as? NSNumber)?.doubleValue),
+              let y = finite((cmd["y"] as? NSNumber)?.doubleValue) else {
+            fail(id, "move requires finite x and y"); return
+        }
+        let speed = finite((cmd["speedPxPerSec"] as? NSNumber)?.doubleValue) ?? 1400
+        let jitter = finite((cmd["jitterPx"] as? NSNumber)?.doubleValue) ?? 0
+        humanMove(to: CGPoint(x: x, y: y), speedPxPerSec: speed, jitterPx: jitter)
+        markSelfInput()
+        ok(id)
+
+    case "click":
+        let buttonName = (cmd["button"] as? String) ?? "left"
+        let b = cgButton(buttonName)
+        let p = currentMousePos()
+        postMouseButton(b, down: true, at: p)
+        postMouseButton(b, down: false, at: p)
+        markSelfInput()
+        ok(id)
+
+    case "down":
+        let b = cgButton((cmd["button"] as? String) ?? "left")
+        if b == .left { leftButtonDown = true }
+        postMouseButton(b, down: true, at: currentMousePos())
+        markSelfInput()
+        ok(id)
+
+    case "up":
+        let b = cgButton((cmd["button"] as? String) ?? "left")
+        postMouseButton(b, down: false, at: currentMousePos())
+        if b == .left { leftButtonDown = false }
+        markSelfInput()
+        ok(id)
+
+    case "type":
+        guard let text = cmd["text"] as? String else { fail(id, "type requires text"); return }
+        let lo = (cmd["delayMsMin"] as? NSNumber)?.intValue ?? 25
+        let hi = (cmd["delayMsMax"] as? NSNumber)?.intValue ?? 85
+        typeText(text, delayMsMin: lo, delayMsMax: hi)
+        markSelfInput()
+        ok(id)
+
+    case "key":
+        guard let key = cmd["key"] as? String else { fail(id, "key requires key name"); return }
+        let mods = (cmd["modifiers"] as? [String]) ?? []
+        if let err = postKey(key, modifiers: mods) { fail(id, err); return }
+        markSelfInput()
+        ok(id)
+
+    case "scroll":
+        let dx = (cmd["dx"] as? NSNumber)?.int32Value ?? 0
+        let dy = (cmd["dy"] as? NSNumber)?.int32Value ?? 0
+        postScroll(dx: dx, dy: dy)
+        markSelfInput()
+        ok(id)
+
+    case "scrollGesture":
+        let dx = (cmd["dx"] as? NSNumber)?.int32Value ?? 0
+        let dy = (cmd["dy"] as? NSNumber)?.int32Value ?? 0
+        let durationMs = finite((cmd["durationMs"] as? NSNumber)?.doubleValue) ?? 400
+        let jitterPx = finite((cmd["jitterPx"] as? NSNumber)?.doubleValue) ?? 3
+        postScrollGesture(dx: dx, dy: dy, durationMs: durationMs, jitterPx: jitterPx)
+        markSelfInput()
+        ok(id)
+
+    case "idle":
+        // Time since the user last touched the real mouse/keyboard, used by the
+        // executor to pause while the human is actively using the machine. The
+        // agent injects to the HID tap, so its own events also advance the system
+        // counter — we subtract them by comparing against lastSelfInputMono: the
+        // user is "active" only if the most recent system event is newer than our
+        // most recent injection. When it isn't, the user has been quiet since we
+        // last acted, so report a large idle time (safe to proceed).
+        let inputTypes: [CGEventType] = [
+            .mouseMoved, .leftMouseDown, .leftMouseUp, .leftMouseDragged,
+            .rightMouseDown, .keyDown, .flagsChanged, .scrollWheel,
+        ]
+        var sysIdle = Double.greatestFiniteMagnitude
+        for t in inputTypes {
+            let s = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: t)
+            if s < sysIdle { sysIdle = s }
+        }
+        let selfIdle = lastSelfInputMono == 0 ? Double.greatestFiniteMagnitude
+                                              : monoNowSecs() - lastSelfInputMono
+        // Epsilon absorbs the small lag between our post and the counter update,
+        // so our own events don't read as the user pre-empting us.
+        let userActive = sysIdle + 0.05 < selfIdle
+        // secondsSinceLastEventType returns a huge value (≈ uptime) when no such
+        // event has ever occurred; converting that to Int would trap, so clamp to
+        // a finite cap that still reads as "long idle" on the JS side.
+        let toMs: (Double) -> Int = { s in s.isFinite ? min(Int(min(s, 86_400) * 1000), 86_400_000) : 86_400_000 }
+        ok(id, [
+            "userActive": userActive,
+            "userIdleMs": userActive ? toMs(sysIdle) : 86_400_000,
+            "sysIdleMs": toMs(sysIdle),
+            "selfIdleMs": toMs(selfIdle),
+        ])
+
+    default:
+        fail(id, "unknown op: \(op)")
+    }
+}
+
+// ─── Main loop ───────────────────────────────────────────────────────────────
+
+while let line = readLine(strippingNewline: true) {
+    let trimmed = line.trimmingCharacters(in: .whitespaces)
+    if trimmed.isEmpty { continue }
+    guard let data = trimmed.data(using: .utf8),
+          let cmd = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        writeResponse(["id": "", "ok": false, "error": "invalid JSON"])
+        continue
+    }
+    handle(cmd)
+}

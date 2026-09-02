@@ -1,0 +1,102 @@
+{
+  "models": {
+    "plan": {
+      "enabled": true,
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "reasoningEffort": "medium",
+      "timeoutMs": 30000
+    },
+    "primary": {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "reasoningEffort": "low",
+      "maxTokens": 4096,
+      "timeoutMs": 10000
+    },
+    "vision": {
+      "provider": "local_vlm",
+      "model": "LFM2.5-VL-450M",
+      "escalationModel": "LFM2.5-VL-1.6B",
+      "reasoningEffort": "low",
+      "prompt": "Describe the image/page in detail, 1500-2000 chars.",
+      "maxTokens": 1024,
+      "timeoutMs": 10000
+    },
+    "reflect": {
+      "enabled": true,
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "reasoningEffort": "low",
+      "timeoutMs": 30000,
+      "maxReflections": 10,
+      "cooldownTurns": 4,
+      "budgetTurnFraction": 0.6,
+      "savedMaxChars": 16000
+    },
+    "report": {
+      "enabled": true,
+      "provider": "openai",
+      "model": "gpt-5.5",
+      "reasoningEffort": "medium",
+      "timeoutMs": 60000
+    }
+  },
+
+  "chrome": {
+    "executablePath": null
+  },
+
+  "loop": {
+    "maxSteps": 500,
+    "shortCircuitOnNoChange": true,
+    "pollMs": 1500,
+    "maxNoChangePolls": 3,
+    "maxStuckRepeats": 2,
+    "maxEmptyPlans": 1,
+    "maxUrlVisits": 4,
+    "revisitUrlMatch": "clean",
+    "maxSparsePageRetries": 4,
+    "sparsePageRetryMs": 400,
+    "sparsePageMinNodes": 2,
+    "maxSameDirectionScrolls": 3,
+    "maxScrollReversals": 3
+  },
+
+  "settle": {
+    "afterActionMs": 150,
+    "maxMs": 2000
+  },
+
+  "view": {
+    "includeText": true,
+    "maxTextChars": 200,
+    "dedupeText": true
+  },
+
+  "executor": {
+    "backend": "os",
+    "binPath": null,
+    "pauseOnUserInput": true,
+    "userIdleMs": 600,
+    "raiseChromeOnStart": true,
+    "humanize": {
+      "enabled": true,
+      "mouseSpeedPxPerSec": 2000,
+      "mouseJitterPx": 4,
+      "keystrokeDelayMsMin": 10,
+      "keystrokeDelayMsMax": 60,
+      "postFocusPauseMs": 80,
+      "postClearPauseMs": 50,
+      "preClickPauseMsMin": 40,
+      "preClickPauseMsMax": 160,
+      "scrollDurationMs": 300,
+      "scrollJitterPx": 4
+    }
+  },
+
+  "log": {
+    "enabled": true,
+    "dir": "logs"
+  }
+}

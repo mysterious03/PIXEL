@@ -1,0 +1,29 @@
+node_modules/
+git/
+node-v20.17.0-win-x64/
+OllamaSetup.exe
+browser-agent-main/
+out.json
+*.log
+.DS_Store
+
+# Per-run agent logs
+logs/
+
+# Per-run scratchpad output — may contain scraped page content; never commit it
+runs/
+
+# Secrets — provider API keys live here
+.env
+.env.*
+!.env.example
+
+# Claude Code project settings (machine-local)
+.claude/
+
+# Built native binary — per-platform, rebuild via native/macos/browser-input/build.sh
+native/macos/browser-input/bin/
+native/linux/browser-input/bin/
+
+# Release artifacts (signed/notarized dmg + zip) — produced by release.sh
+native/macos/browser-input/dist/
