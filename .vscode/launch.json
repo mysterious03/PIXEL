@@ -1,0 +1,63 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "1. Run Full ODVPA Verification Suite",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "program": "${workspaceFolder}/test/odvpa-full.test.js",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "2. Run Privacy & PII Benchmark Suite",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "program": "${workspaceFolder}/test/privacy.test.js",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "3. Launch Debug Chrome (Port 9222)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "program": "${workspaceFolder}/launch.js",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "4. Run PIXEL Agent Task (Groq)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "program": "${workspaceFolder}/agent.js",
+      "args": ["--provider", "groq", "Go to https://isro.gov.in and summarize latest updates"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "5. Run VLM Benchmark Comparator (Moondream vs SmolVLM)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "program": "${workspaceFolder}/test/benchmark-comparator.js",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "6. Train LoRA Personalization Adapter",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "program": "${workspaceFolder}/tools/train-lora.js",
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "7. Extract Zero-Cost Screen Graph CLI",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "program": "${workspaceFolder}/cli.js",
+      "args": ["--tree", "--pretty"],
+      "console": "integratedTerminal"
+    }
+  ]
+}

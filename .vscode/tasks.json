@@ -1,0 +1,41 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run Full ODVPA Test Suite",
+      "type": "shell",
+      "command": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "args": ["test/odvpa-full.test.js"],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Run Privacy & PII Benchmark",
+      "type": "shell",
+      "command": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "args": ["test/privacy.test.js"],
+      "group": "test",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Train LoRA Personalization Adapter",
+      "type": "shell",
+      "command": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
+      "args": ["tools/train-lora.js"],
+      "group": "build",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      }
+    }
+  ]
+}
