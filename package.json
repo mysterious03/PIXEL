@@ -9,7 +9,8 @@
     "pixel-extract": "./cli.js"
   },
   "scripts": {
-    "start": "node live.js",
+    "start": "node studio.js",
+    "studio": "node studio.js",
     "live": "node live.js",
     "launch": "node launch.js",
     "extract": "node cli.js --tree --pretty",
