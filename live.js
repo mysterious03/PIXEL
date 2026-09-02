@@ -12,7 +12,7 @@ require('dotenv').config({ quiet: true });
 
 const readline = require('readline');
 const { connect } = require('./lib/connect');
-const { launchChrome } = require('./lib/launch');
+const { launch, isRunning } = require('./lib/launch');
 const { generateLiveHudScript, generateAnnotateBoxesScript } = require('./lib/live-hud');
 const { updateStateOverlay, clearStateOverlay } = require('./lib/overlay');
 const { buildScreenGraph } = require('./lib/graph');
@@ -21,20 +21,14 @@ const { loadConfig } = require('./lib/config');
 
 async function ensureChromeRunning() {
   try {
-    const session = await connect({ port: 9222 });
-    await session.close();
+    const running = await isRunning(9222);
+    if (running) return true;
+    console.log('[PIXEL Live] Launching Chrome on port 9222...');
+    await launch({ port: 9222 });
     return true;
   } catch (err) {
-    console.log('[PIXEL Live] Launching Chrome on port 9222...');
-    try {
-      await launchChrome({ port: 9222 });
-      // Short pause to allow Chrome process to initialize
-      await new Promise(r => setTimeout(r, 1200));
-      return true;
-    } catch (e) {
-      console.error(`[PIXEL Live] Could not auto-launch Chrome: ${e.message}`);
-      return false;
-    }
+    console.error(`[PIXEL Live] Notice: ${err.message}`);
+    return false;
   }
 }
 
