@@ -47,7 +47,7 @@
       "request": "launch",
       "runtimeExecutable": "${workspaceFolder}/node-v20.17.0-win-x64/node.exe",
       "program": "${workspaceFolder}/agent.js",
-      "args": ["--provider", "groq", "Go to https://isro.gov.in and summarize latest updates"],
+      "args": ["--executor", "cdp", "--provider", "groq", "Go to https://isro.gov.in and summarize latest updates"],
       "console": "integratedTerminal"
     },
     {

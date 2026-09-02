@@ -2,7 +2,7 @@
 
 **Evaluation Target:** Candidate Tier A On-Device Perception Models  
 **Test Set:** 5 Ground-Truth UI Crops derived from `test/pii-benchmark.html` + Enterprise Portals  
-**Date:** 2026-09-02T09:52:25.123Z
+**Date:** 2026-09-02T10:11:44.997Z
 
 ---
 
