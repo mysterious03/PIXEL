@@ -69,35 +69,65 @@ Most cloud-first browser agents capture full-resolution screenshots or dump raw 
 - Maintains an on-device, privacy-safe log of captured nodes, PII detections, risk scores, tiering decisions, and network traffic.
 - Renders HTML/Markdown report tables inside `runs/<run-id>/report.html`.
 
+### 8. 🧠 Small Language Model (SLM) Tier for Reasoning
+- Tiers text reasoning and action planning via local SLMs (**`Qwen2.5:1.5b-instruct`** / **`Llama3.2:1b-instruct`**) configured in `models.primaryLocal`.
+- Routes reasoning through the confidence router: unambiguous, simple actions resolve on-device with zero cloud calls.
+- Complex or ambiguous multi-step plans escalate to the cloud tier with full privacy redaction.
+
+### 9. 🔄 LoRA-Based On-Device Personalization & Distillation Loop
+- Collects successful cloud-escalated action trajectories locally in `logs/training-log.jsonl` as preference pairs `{ input, correctedOutput }`.
+- Automatically redacts all data through the 5-stage Privacy Layer before writing to disk.
+- Fine-tunes a personalized Low-Rank Adaptation (LoRA) adapter (`lora-adapters/pixel-user-adapter.gguf`) using `npm run train-lora`.
+- Serves adapters locally via Ollama with the provided `Modelfile` pattern.
+
+### 10. 🪜 5-Tier Graceful Degradation Ladder
+- Section 15.1 fallback ladder probed at startup via `lib/degradation.js` (`resolveCapabilityTier`):
+  1. **Tier 1**: Full Local Vision + SLM (Ollama reachable with VLM & SLM)
+  2. **Tier 2**: Structure-Only (Local SLM available, Vision offline)
+  3. **Tier 3**: OCR-Only (Local OCR available)
+  4. **Tier 4**: DOM-Only (Basic DOM & AXTree extraction)
+  5. **Tier 5**: Full Cloud Fallback (Strict 5-stage Privacy Gate)
+- Protects live agent sessions from crashing if local servers are offline.
+
+### 11. ✂️ Task-Aware Context Minimisation
+- Scores each Screen Graph node for task relevance via `scoreNodeRelevance(node, taskDescription)` before token processing.
+- Prunes irrelevant promotional banners, ad cookies, and extraneous footer links, reducing prompt token payload by 40-70%.
+
+### 12. 👁️ Visible "AI Cursor" Transparency Overlay
+- Injects a real-time, non-intrusive on-screen transparency badge (`OBSERVING`, `THINKING`, `TARGET_FOUND`, `ACTING`) via `lib/overlay.js`.
+- Highlights the target element's bounding box in amber/green before each action so operators see what the agent is doing before execution.
+
+### 13. 📊 Independent VLM Benchmark Comparator (Moondream vs SmolVLM)
+- Evaluates candidate Tier A vision models across enterprise UI crops (`test/pii-benchmark.html`).
+- Automated scoring harness in `test/benchmark-comparator.js` and benchmark report in `docs/BENCHMARK_RESULTS.md`.
+
 ---
 
-## 🧮 Mathematical Formulation
+## 🚀 Quickstart & Commands
 
-### 1. Routing Confidence Function
-$$C(a, t) = \alpha \cdot p_{cal}(a, t) + (1 - \alpha) \cdot A(a, t)$$
-*Where $\alpha = 0.6$, $p_{cal} = \text{softmax}(z / T)$, and $A(a, t)$ is inter-source agreement.*
+```bash
+# 1. Run Complete ODVPA Master Test Suite
+node test/odvpa-full.test.js
 
-### 2. Privacy Risk Score & Gate
-$$\text{Risk}(N) = \max_{n \in N} \left( w(n) \cdot P_{\text{PII}}(n) \right)$$
-*If $\text{Risk}(N) > \tau_{privacy} (0.60)$, transmission is blocked.*
+# 2. Run Privacy & PII Benchmark Test Suite
+node test/privacy.test.js
 
-### 3. Efficiency Metrics
-- **Vision Invocation Rate**: $V_{rate} = F_{vision} / F$
-- **Token Compression Ratio**: $\rho = 1 - (S_{sent} / S_{full})$
+# 3. Run VLM Benchmark Comparator (Moondream vs SmolVLM)
+node test/benchmark-comparator.js
 
----
+# 4. Train LoRA Personalization Adapter
+npm run train-lora
 
-## 🛠️ Technology Stack
-
-| Layer | Technology | Role & Justification |
-|---|---|---|
-| **Extension Shell / Harness** | Chrome DevTools Protocol (CDP) | Connects to live Chrome tab without browser extension injection |
-| **Structure Sources** | Browser Accessibility Tree API + DOM | Zero-cost structure extraction |
-| **Local VLM Adapter** | `local_vlm` / ONNX Runtime Web / Ollama | On-device execution (`LFM2.5-VL-450M` & `LFM2.5-VL-1.6B`) |
-| **OCR Fallback** | Tesseract.js / WebAssembly | WASM-accelerated text-in-image extraction |
-| **Local Storage** | IndexedDB / Native JSON Logs | On-device audit log storage |
+# 5. Build and Serve Personalized Ollama Model
+ollama create pixel-personalized -f Modelfile
+```
 
 ---
+
+## 📄 License & Attribution
+MIT License — Smart India Hackathon 2026 (Problem Statement 26171 - ISRO / Department of Space).
+Author & Maintainer: **mysterious03** (PIXEL Repository).
+
 
 ## 🔑 Required API Keys & Local Setup
 

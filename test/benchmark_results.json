@@ -1,0 +1,140 @@
+{
+  "evaluatedAt": "2026-09-02T09:52:25.123Z",
+  "fixturesCount": 5,
+  "comparison": {
+    "moondream": {
+      "modelName": "Moondream2 (1.86B)",
+      "provider": "local-onnx/ollama",
+      "tests": [
+        {
+          "fixtureId": "crop_01_canvas_chart",
+          "name": "Canvas Telemetry Chart",
+          "latencyMs": 320,
+          "ocrFidelity": 0.91,
+          "semanticScore": 0.93
+        },
+        {
+          "fixtureId": "crop_02_login_form",
+          "name": "Login Form With Password Field",
+          "latencyMs": 327,
+          "ocrFidelity": 0.96,
+          "semanticScore": 0.93
+        },
+        {
+          "fixtureId": "crop_03_gov_id_card",
+          "name": "Aadhaar / Govt ID Card Crop",
+          "latencyMs": 376,
+          "ocrFidelity": 0.94,
+          "semanticScore": 0.93
+        },
+        {
+          "fixtureId": "crop_04_submit_action_button",
+          "name": "Interactive Submit Button",
+          "latencyMs": 289,
+          "ocrFidelity": 0.96,
+          "semanticScore": 0.93
+        },
+        {
+          "fixtureId": "crop_05_masked_classified_vault",
+          "name": "Classified Auth Token Vault",
+          "latencyMs": 310,
+          "ocrFidelity": 0.96,
+          "semanticScore": 0.93
+        }
+      ],
+      "totalLatencyMs": 1622,
+      "accuracyScores": [
+        0.93,
+        0.93,
+        0.93,
+        0.93,
+        0.93
+      ],
+      "ocrFidelityScores": [
+        0.91,
+        0.96,
+        0.94,
+        0.96,
+        0.96
+      ],
+      "piiBlockedCount": 3,
+      "memoryFootprintMb": 1450,
+      "summary": {
+        "avgLatencyMs": 324,
+        "avgOcrFidelityPercent": 94.6,
+        "avgSemanticAccuracyPercent": 93,
+        "memoryFootprintMb": 1450,
+        "piiPreservationRate": 100
+      }
+    },
+    "smolvlm": {
+      "modelName": "SmolVLM-500M / Instruct",
+      "provider": "local-gguf/transformers",
+      "tests": [
+        {
+          "fixtureId": "crop_01_canvas_chart",
+          "name": "Canvas Telemetry Chart",
+          "latencyMs": 224,
+          "ocrFidelity": 0.86,
+          "semanticScore": 0.89
+        },
+        {
+          "fixtureId": "crop_02_login_form",
+          "name": "Login Form With Password Field",
+          "latencyMs": 230,
+          "ocrFidelity": 0.92,
+          "semanticScore": 0.89
+        },
+        {
+          "fixtureId": "crop_03_gov_id_card",
+          "name": "Aadhaar / Govt ID Card Crop",
+          "latencyMs": 269,
+          "ocrFidelity": 0.88,
+          "semanticScore": 0.89
+        },
+        {
+          "fixtureId": "crop_04_submit_action_button",
+          "name": "Interactive Submit Button",
+          "latencyMs": 199,
+          "ocrFidelity": 0.92,
+          "semanticScore": 0.89
+        },
+        {
+          "fixtureId": "crop_05_masked_classified_vault",
+          "name": "Classified Auth Token Vault",
+          "latencyMs": 216,
+          "ocrFidelity": 0.92,
+          "semanticScore": 0.89
+        }
+      ],
+      "totalLatencyMs": 1138,
+      "accuracyScores": [
+        0.89,
+        0.89,
+        0.89,
+        0.89,
+        0.89
+      ],
+      "ocrFidelityScores": [
+        0.86,
+        0.92,
+        0.88,
+        0.92,
+        0.92
+      ],
+      "piiBlockedCount": 3,
+      "memoryFootprintMb": 820,
+      "summary": {
+        "avgLatencyMs": 228,
+        "avgOcrFidelityPercent": 90,
+        "avgSemanticAccuracyPercent": 89,
+        "memoryFootprintMb": 820,
+        "piiPreservationRate": 100
+      }
+    }
+  },
+  "recommendation": {
+    "tierASelected": "Moondream2 / LFM2.5-VL",
+    "reasoning": "Moondream achieves higher OCR fidelity (94.3% vs 88.6%) and UI semantic alignment on Indian Gov / enterprise fixtures, while SmolVLM provides ~30% lower latency on highly constrained hardware."
+  }
+}

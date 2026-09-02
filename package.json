@@ -17,7 +17,8 @@
     "test:privacy": "node test/privacy.test.js",
     "test:e2e": "BROWSER_AGENT_E2E=1 node test/test.js && BROWSER_AGENT_E2E=1 node test/selectText.test.js",
     "test:agent": "node test/agent.test.js",
-    "bench": "node bench.js"
+    "bench": "node bench.js",
+    "train-lora": "node tools/train-lora.js"
   },
   "keywords": [
     "pixel",

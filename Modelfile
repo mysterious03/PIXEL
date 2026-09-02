@@ -1,0 +1,11 @@
+# ODVPA On-Device Personalized Model Adapter
+FROM qwen2.5:1.5b-instruct
+ADAPTER ./lora-adapters/pixel-user-adapter.gguf
+
+# Model Parameters
+PARAMETER temperature 0.2
+PARAMETER top_p 0.9
+PARAMETER stop "<|im_end|>"
+
+# System Prompt North Star
+SYSTEM """You are PIXEL Personalized Local SLM, fine-tuned on verified operator preference trajectories with zero cloud leakage."""
