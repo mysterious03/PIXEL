@@ -77,6 +77,7 @@ async function main() {
           // 1. Register HUD script to run automatically on any new navigation or reload
           if (!registeredScriptTargets.has(page.id)) {
             try {
+              await client.Page.enable().catch(() => {});
               await client.Page.addScriptToEvaluateOnNewDocument({ source: generateLiveHudScript() });
               registeredScriptTargets.add(page.id);
             } catch {}
@@ -116,23 +117,26 @@ async function main() {
   let isExecuting = false;
 
   const pollInterval = setInterval(async () => {
-    if (isExecuting) return;
     try {
       const now = Date.now();
-      // 1. Maintain HUD presence across all open tabs (throttled to avoid CDP socket thrashing)
+      // 1. Maintain HUD presence across all open tabs even while executing
       if (now - lastTabSyncTime > 1500) {
         lastTabSyncTime = now;
         await syncAllTabsHud();
       }
 
-      // 2. Detect if user switched tabs in Chrome
-      const visibleTab = await session.getVisibleTab();
-      if (visibleTab && visibleTab.id !== session.targetId) {
-        const switched = await session.switchToTab(visibleTab.id, visibleTab);
-        if (switched) {
-          console.log(`\n\x1b[36m[PIXEL Tab Switch]\x1b[0m Switched active session to: "${visibleTab.title || ''}" (${visibleTab.url || ''})`);
+      // 2. Detect if user switched tabs in Chrome (only track manual switch when idle)
+      if (!isExecuting) {
+        const visibleTab = await session.getVisibleTab();
+        if (visibleTab && visibleTab.id !== session.targetId) {
+          const switched = await session.switchToTab(visibleTab.id, visibleTab);
+          if (switched) {
+            console.log(`\n\x1b[36m[PIXEL Tab Switch]\x1b[0m Switched active session to: "${visibleTab.title || ''}" (${visibleTab.url || ''})`);
+          }
         }
       }
+
+      if (isExecuting) return;
 
       const client = session.client;
       if (!client) return;
