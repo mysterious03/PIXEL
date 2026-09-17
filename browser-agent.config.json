@@ -2,42 +2,42 @@
   "models": {
     "plan": {
       "enabled": false,
-      "provider": "openai",
+      "provider": "groq",
       "model": null,
       "reasoningEffort": null,
-      "timeoutMs": 30000
+      "timeoutMs": 8000
     },
     "primary": {
-      "provider": "ollama",
-      "model": "qwen2.5:3b",
+      "provider": "groq",
+      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
       "reasoningEffort": null,
-      "maxTokens": 4096,
-      "timeoutMs": 30000
+      "maxTokens": 512,
+      "timeoutMs": 12000
     },
     "vision": {
-      "provider": "ollama",
-      "model": "moondream",
-      "prompt": "Describe the image/page in detail, 1500-2000 chars.",
-      "maxTokens": 1024,
-      "timeoutMs": 30000
+      "provider": "groq",
+      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "prompt": "Briefly describe the page layout and key interactive elements in 200 chars.",
+      "maxTokens": 256,
+      "timeoutMs": 8000
     },
     "reflect": {
       "enabled": false,
       "provider": "groq",
       "model": null,
       "reasoningEffort": null,
-      "timeoutMs": 30000,
-      "maxReflections": 10,
+      "timeoutMs": 12000,
+      "maxReflections": 3,
       "cooldownTurns": 4,
       "budgetTurnFraction": 0.6,
-      "savedMaxChars": 16000
+      "savedMaxChars": 8000
     },
     "report": {
       "enabled": false,
       "provider": "groq",
       "model": null,
       "reasoningEffort": null,
-      "timeoutMs": 60000
+      "timeoutMs": 20000
     }
   },
 
@@ -48,49 +48,49 @@
   "loop": {
     "maxSteps": 500,
     "shortCircuitOnNoChange": true,
-    "pollMs": 1500,
-    "maxNoChangePolls": 3,
+    "pollMs": 300,
+    "maxNoChangePolls": 2,
     "maxStuckRepeats": 2,
     "maxEmptyPlans": 3,
     "maxUrlVisits": 4,
     "revisitUrlMatch": "clean",
-    "maxSparsePageRetries": 4,
-    "sparsePageRetryMs": 400,
+    "maxSparsePageRetries": 2,
+    "sparsePageRetryMs": 150,
     "sparsePageMinNodes": 2,
     "maxSameDirectionScrolls": 3,
     "maxScrollReversals": 3
   },
 
   "settle": {
-    "afterActionMs": 150,
-    "maxMs": 2000
+    "afterActionMs": 50,
+    "maxMs": 800
   },
 
   "view": {
     "includeText": true,
-    "maxTextChars": 80,
+    "maxTextChars": 60,
     "dedupeText": true,
-    "maxListingLines": 40
+    "maxListingLines": 30
   },
 
   "executor": {
     "backend": "cdp",
     "binPath": null,
-    "pauseOnUserInput": true,
-    "userIdleMs": 600,
+    "pauseOnUserInput": false,
+    "userIdleMs": 400,
     "raiseChromeOnStart": true,
     "humanize": {
-      "enabled": true,
-      "mouseSpeedPxPerSec": 2000,
-      "mouseJitterPx": 4,
-      "keystrokeDelayMsMin": 10,
-      "keystrokeDelayMsMax": 60,
-      "postFocusPauseMs": 80,
-      "postClearPauseMs": 50,
-      "preClickPauseMsMin": 40,
-      "preClickPauseMsMax": 160,
-      "scrollDurationMs": 300,
-      "scrollJitterPx": 4
+      "enabled": false,
+      "mouseSpeedPxPerSec": 3000,
+      "mouseJitterPx": 0,
+      "keystrokeDelayMsMin": 0,
+      "keystrokeDelayMsMax": 10,
+      "postFocusPauseMs": 20,
+      "postClearPauseMs": 10,
+      "preClickPauseMsMin": 10,
+      "preClickPauseMsMax": 30,
+      "scrollDurationMs": 100,
+      "scrollJitterPx": 0
     }
   },
 
@@ -99,3 +99,4 @@
     "dir": "logs"
   }
 }
+
