@@ -92,7 +92,7 @@ function createDesktopShortcut(browserExe) {
       sLinkFile = "${shortcutPath.replace(/\\/g, '\\\\')}"
       Set oLink = oWS.CreateShortcut(sLinkFile)
       oLink.TargetPath = "${browserExe.replace(/\\/g, '\\\\')}"
-      oLink.Arguments = "--user-data-dir=""${profileDir.replace(/\\/g, '\\\\')}"" --load-extension=""${extensionDir.replace(/\\/g, '\\\\')}"" --disable-extensions-except=""${extensionDir.replace(/\\/g, '\\\\')}"" --no-first-run"
+      oLink.Arguments = "--user-data-dir=""${profileDir.replace(/\\/g, '\\\\')}"" --load-extension=""${extensionDir.replace(/\\/g, '\\\\')}"" --no-first-run --no-default-browser-check https://www.isro.gov.in"
       oLink.Description = "Launch Google Chrome with PIXEL ODVPA Agent Extension"
       oLink.Save
     `;
@@ -143,7 +143,6 @@ async function installAndLaunch() {
   const args = [
     `--user-data-dir=${profileDir}`,
     `--load-extension=${extensionDir}`,
-    `--disable-extensions-except=${extensionDir}`,
     '--no-first-run',
     '--no-default-browser-check',
     'https://www.isro.gov.in'

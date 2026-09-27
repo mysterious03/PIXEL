@@ -38,7 +38,7 @@ echo Extension path: "%EXT_DIR%"
 echo.
 echo Launching Chrome with PIXEL extension plugged in...
 
-start "" "%CHROME_EXE%" --user-data-dir="%PROFILE_DIR%" --load-extension="%EXT_DIR%" --disable-extensions-except="%EXT_DIR%" --no-first-run --no-default-browser-check https://www.isro.gov.in
+start "" "%CHROME_EXE%" --user-data-dir="%PROFILE_DIR%" --load-extension="%EXT_DIR%" --no-first-run --no-default-browser-check https://www.isro.gov.in
 
 echo.
 echo =========================================================================

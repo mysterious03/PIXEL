@@ -69,7 +69,6 @@ if ($browser) {
     $argsList = @(
         "--user-data-dir=$profileDir",
         "--load-extension=$extensionDir",
-        "--disable-extensions-except=$extensionDir",
         "--no-first-run",
         "--no-default-browser-check",
         "https://www.isro.gov.in"

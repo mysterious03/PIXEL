@@ -115,7 +115,6 @@ async function main() {
 
   // Chromium flags for 100% reliable unpacked extension loading
   const args = [
-    `--disable-extensions-except=${extensionPath}`,
     `--load-extension=${extensionPath}`,
     `--user-data-dir=${profileDir}`,
     '--no-first-run',
