@@ -120,7 +120,6 @@ async function main() {
     `--user-data-dir=${profileDir}`,
     '--no-first-run',
     '--no-default-browser-check',
-    '--disable-blink-features=AutomationControlled',
     '--new-window',
     'https://www.isro.gov.in'
   ];

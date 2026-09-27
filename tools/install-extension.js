@@ -146,7 +146,6 @@ async function installAndLaunch() {
     `--disable-extensions-except=${extensionDir}`,
     '--no-first-run',
     '--no-default-browser-check',
-    '--disable-blink-features=AutomationControlled',
     'https://www.isro.gov.in'
   ];
 

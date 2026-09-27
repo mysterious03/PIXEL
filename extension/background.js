@@ -92,61 +92,6 @@ async function checkBackendHealth() {
   }
 }
 
-// Attach native CDP debugger
-async function attachDebugger(tabId) {
-  if (attachedTabs.has(tabId)) return true;
-  return new Promise((resolve) => {
-    chrome.debugger.attach({ tabId }, '1.3', () => {
-      if (chrome.runtime.lastError) {
-        console.warn('[PIXEL SW] Debugger attach note:', chrome.runtime.lastError.message);
-        resolve(false);
-      } else {
-        attachedTabs.add(tabId);
-        chrome.debugger.sendCommand({ tabId }, 'Accessibility.enable', {}, () => {});
-        chrome.debugger.sendCommand({ tabId }, 'DOM.enable', {}, () => {});
-        resolve(true);
-      }
-    });
-  });
-}
-
-// Detach native CDP debugger
-async function detachDebugger(tabId) {
-  if (!attachedTabs.has(tabId)) return true;
-  return new Promise((resolve) => {
-    chrome.debugger.detach({ tabId }, () => {
-      attachedTabs.delete(tabId);
-      resolve(true);
-    });
-  });
-}
-
-// Native CDP Input Dispatch (Fallback Tier 3)
-async function dispatchNativeCdpClick(tabId, x, y) {
-  const attached = await attachDebugger(tabId);
-  if (!attached) return false;
-
-  return new Promise((resolve) => {
-    chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-      type: 'mousePressed',
-      x,
-      y,
-      button: 'left',
-      clickCount: 1
-    }, () => {
-      chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
-        type: 'mouseReleased',
-        x,
-        y,
-        button: 'left',
-        clickCount: 1
-      }, () => {
-        resolve(true);
-      });
-    });
-  });
-}
-
 // Message Dispatcher
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const { type, payload } = message || {};
@@ -187,30 +132,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return;
     }
     ensureContentScriptInjected(tabId).then(sendResponse);
-    return true;
-  }
-
-  if (type === 'NATIVE_CDP_CLICK') {
-    const { tabId, x, y } = payload || {};
-    dispatchNativeCdpClick(tabId, x, y).then((success) => {
-      sendResponse({ success });
-    });
-    return true;
-  }
-
-  if (type === 'ATTACH_DEBUGGER') {
-    const tabId = payload?.tabId;
-    attachDebugger(tabId).then((success) => {
-      sendResponse({ success, attached: attachedTabs.has(tabId) });
-    });
-    return true;
-  }
-
-  if (type === 'DETACH_DEBUGGER') {
-    const tabId = payload?.tabId;
-    detachDebugger(tabId).then((success) => {
-      sendResponse({ success, attached: false });
-    });
     return true;
   }
 
