@@ -28,7 +28,10 @@
     "bench:vlm": "node test/vlm-benchmark.js",
     "bench": "node test/ps171-benchmark-suite.js",
     "models:check": "node tools/download-lfm-models.js",
-    "train-lora": "node tools/train-lora.js"
+    "train-lora": "node tools/train-lora.js",
+    "extension:pack": "node tools/package-extension.js",
+    "ext": "node tools/install-extension.js",
+    "install-extension": "node tools/install-extension.js"
   },
   "keywords": [
     "pixel",

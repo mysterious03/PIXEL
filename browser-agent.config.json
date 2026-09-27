@@ -5,28 +5,28 @@
       "provider": "groq",
       "model": null,
       "reasoningEffort": null,
-      "timeoutMs": 8000
+      "timeoutMs": 20000
     },
     "primary": {
-      "provider": "groq",
-      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "provider": "ollama",
+      "model": "qwen2.5:3b",
       "reasoningEffort": null,
-      "maxTokens": 512,
-      "timeoutMs": 12000
+      "maxTokens": 1024,
+      "timeoutMs": 45000
     },
     "vision": {
-      "provider": "groq",
-      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "provider": "ollama",
+      "model": "moondream:latest",
       "prompt": "Briefly describe the page layout and key interactive elements in 200 chars.",
       "maxTokens": 256,
-      "timeoutMs": 8000
+      "timeoutMs": 30000
     },
     "reflect": {
       "enabled": false,
       "provider": "groq",
       "model": null,
       "reasoningEffort": null,
-      "timeoutMs": 12000,
+      "timeoutMs": 30000,
       "maxReflections": 3,
       "cooldownTurns": 4,
       "budgetTurnFraction": 0.6,
@@ -37,7 +37,7 @@
       "provider": "groq",
       "model": null,
       "reasoningEffort": null,
-      "timeoutMs": 20000
+      "timeoutMs": 30000
     }
   },
 
@@ -46,31 +46,31 @@
   },
 
   "loop": {
-    "maxSteps": 500,
+    "maxSteps": 30,
     "shortCircuitOnNoChange": true,
     "pollMs": 300,
-    "maxNoChangePolls": 2,
-    "maxStuckRepeats": 2,
-    "maxEmptyPlans": 3,
+    "maxNoChangePolls": 3,
+    "maxStuckRepeats": 3,
+    "maxEmptyPlans": 5,
     "maxUrlVisits": 4,
     "revisitUrlMatch": "clean",
-    "maxSparsePageRetries": 2,
-    "sparsePageRetryMs": 150,
+    "maxSparsePageRetries": 3,
+    "sparsePageRetryMs": 200,
     "sparsePageMinNodes": 2,
-    "maxSameDirectionScrolls": 3,
-    "maxScrollReversals": 3
+    "maxSameDirectionScrolls": 4,
+    "maxScrollReversals": 4
   },
 
   "settle": {
-    "afterActionMs": 50,
-    "maxMs": 800
+    "afterActionMs": 100,
+    "maxMs": 1500
   },
 
   "view": {
     "includeText": true,
-    "maxTextChars": 60,
+    "maxTextChars": 80,
     "dedupeText": true,
-    "maxListingLines": 30
+    "maxListingLines": 40
   },
 
   "executor": {
@@ -99,4 +99,3 @@
     "dir": "logs"
   }
 }
-

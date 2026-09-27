@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to PIXEL — ISRO PS-26171</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070a12;
+      --card-bg: rgba(18, 25, 43, 0.7);
+      --border: rgba(99, 102, 241, 0.25);
+      --primary: #6366f1;
+      --accent: #06b6d4;
+      --green: #10b981;
+      --orange: #f97316;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(circle at 50% 10%, #151d38 0%, #070a12 80%);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    .container {
+      max-width: 860px;
+      width: 100%;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .badge-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 30px;
+      background: rgba(249, 115, 22, 0.15);
+      border: 1px solid rgba(249, 115, 22, 0.35);
+      color: #fb923c;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, #ffffff 40%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    .hero-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 28px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+      margin-bottom: 24px;
+    }
+    .status-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 10px;
+      margin-bottom: 24px;
+    }
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .status-beacon {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 10px var(--green);
+      animation: pulse 1.8s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
+    }
+    .status-text {
+      font-weight: 700;
+      font-size: 14px;
+      color: #34d399;
+    }
+    .status-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .step-box {
+      background: rgba(10, 15, 29, 0.6);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .step-num {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .step-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .step-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .actions-section {
+      text-align: center;
+    }
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary), #4f46e5);
+      color: white;
+      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+    }
+    .btn-primary:hover {
+      filter: brightness(1.1);
+      transform: translateY(-2px);
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
+      color: var(--text);
+    }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+    .features-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+    }
+    .feat-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .feat-icon {
+      color: var(--green);
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge-bar">
+        <span>🇮🇳 Smart India Hackathon 2026</span>
+        <span>•</span>
+        <span>ISRO / Dept of Space (PS-26171)</span>
+      </div>
+      <h1 class="title">PIXEL Extension is Active in Chrome</h1>
+      <p class="subtitle">
+        Zero-Cost On-Device Visual Perception runtime plugged directly into your browser.
+        No local servers, no cloud data egress, and zero API costs required.
+      </p>
+    </div>
+
+    <div class="hero-card">
+      <div class="status-banner">
+        <div class="status-left">
+          <div class="status-beacon"></div>
+          <div>
+            <div class="status-text">Plugged Directly into Chrome</div>
+            <div class="status-sub">Ready to perceive and navigate any website on-device</div>
+          </div>
+        </div>
+        <span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; background: rgba(0,0,0,0.3); padding: 4px 8px; border-radius: 6px; color: #a7f3d0;">v2.0.0</span>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step-box">
+          <div class="step-num">Step 1</div>
+          <div class="step-title">Open Any Live Website</div>
+          <div class="step-desc">Visit any official portal like ISRO, Wikipedia, government portals, or your web apps.</div>
+        </div>
+        <div class="step-box">
+          <div class="step-num">Step 2</div>
+          <div class="step-title">Open PIXEL Side Panel</div>
+          <div class="step-desc">Click the PIXEL icon in Chrome's toolbar (puzzle icon) and open the persistent Side Panel dock.</div>
+        </div>
+        <div class="step-box">
+          <div class="step-num">Step 3</div>
+          <div class="step-title">Perceive & Act</div>
+          <div class="step-desc">Click "Scan Screen" to see instant @e bounding boxes, 5-stage privacy blur, or give it a goal!</div>
+        </div>
+      </div>
+
+      <div class="actions-section">
+        <div class="btn-group">
+          <a href="https://www.isro.gov.in" target="_blank" class="btn btn-primary">
+            <span>🚀</span> Test on Official ISRO Portal
+          </a>
+          <a href="https://en.wikipedia.org/wiki/Chandrayaan-3" target="_blank" class="btn btn-secondary">
+            <span>🌕</span> Test on Chandrayaan-3 Page
+          </a>
+        </div>
+      </div>
+
+      <div class="features-list">
+        <div class="feat-item"><span class="feat-icon">✓</span> 100% On-Device Execution (No Cloud Egress)</div>
+        <div class="feat-item"><span class="feat-icon">✓</span> Zero-Token Fast-Path ($0.00 / 0 API Cost)</div>
+        <div class="feat-item"><span class="feat-icon">✓</span> 5-Stage Hard Privacy Gate & PII Redactor</div>
+        <div class="feat-item"><span class="feat-icon">✓</span> Indirect Prompt Injection Defense Firewall</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

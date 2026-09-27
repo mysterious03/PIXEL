@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIXEL — On-Device Visual Perception Dock</title>
+  <link rel="stylesheet" href="sidepanel.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="app-header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9" stroke="url(#hgrad)" />
+          <circle cx="12" cy="12" r="3" fill="#06b6d4" />
+          <path d="M12 3v3M12 18v3M3 12h3M18 12h3" stroke="#06b6d4" />
+          <defs>
+            <linearGradient id="hgrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#6366f1" />
+              <stop offset="100%" stop-color="#06b6d4" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title">PIXEL <span class="badge-sih">ISRO PS-26171</span></h1>
+        <p class="brand-subtitle">100% On-Device Browser Perception</p>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="status-indicator">
+        <span class="status-dot online" id="connection-dot"></span>
+        <span class="status-label" id="connection-label">On-Device Active</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Active Page Context Bar -->
+  <section class="context-bar">
+    <div class="tab-info">
+      <span class="tab-icon">🌐</span>
+      <span class="tab-title" id="active-tab-title">Active Browser Tab</span>
+    </div>
+    <button class="icon-btn" id="refresh-tab-btn" title="Refresh Active Tab Context">⟳</button>
+  </section>
+
+  <!-- Main Scrollable Content -->
+  <main class="main-content">
+    
+    <!-- Agent Goal Execution Card -->
+    <div class="card card-glow">
+      <div class="card-header">
+        <h2 class="card-title">Autonomous Goal</h2>
+        <span class="badge badge-accent">Live Controller</span>
+      </div>
+      <div class="goal-input-wrap">
+        <textarea id="goal-input" rows="2" placeholder="e.g. Find ISRO telemetry chart and inspect latest orbit parameters..."></textarea>
+      </div>
+      <div class="goal-actions">
+        <button id="run-goal-btn" class="btn btn-primary">
+          <span class="btn-icon">⚡</span> Run Perception Loop
+        </button>
+        <button id="scan-now-btn" class="btn btn-secondary">
+          <span class="btn-icon">👁️</span> Scan Screen
+        </button>
+      </div>
+    </div>
+
+    <!-- Quick Tool Toggles -->
+    <div class="tool-capsules">
+      <button class="capsule-btn" id="toggle-boxes-btn">
+        <span class="capsule-dot"></span> Bounding Boxes (@e)
+      </button>
+      <button class="capsule-btn active" id="toggle-privacy-btn">
+        <span class="capsule-dot green"></span> Privacy Shield
+      </button>
+      <button class="capsule-btn" id="toggle-hud-btn">
+        <span class="capsule-dot blue"></span> In-Page Island
+      </button>
+    </div>
+
+    <!-- Telemetry Statistics Grid -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Fast-Path Token Savings</div>
+        <div class="stat-value text-green" id="stat-savings">98.5%</div>
+        <div class="stat-sub">$0.00 / 0 Cloud Egress</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Interactive Elements</div>
+        <div class="stat-value text-cyan" id="stat-interactive">0</div>
+        <div class="stat-sub">Structural References (@e)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Visual Ambiguities</div>
+        <div class="stat-value text-orange" id="stat-canvas">0</div>
+        <div class="stat-sub">Canvas / SVG Crops (@r)</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">VLM Cascade Tier</div>
+        <div class="stat-value text-indigo" id="stat-vlm-tier">Tier A</div>
+        <div class="stat-sub">LFM2.5-VL-450M Local</div>
+      </div>
+    </div>
+
+    <!-- VLM Confidence & Privacy Banner -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Perception & Privacy Safety</h3>
+        <span class="badge badge-success">Enforced</span>
+      </div>
+      <div class="meter-group">
+        <div class="meter-header">
+          <span>Routing Confidence C(a,t)</span>
+          <span id="confidence-val" class="text-cyan font-mono">0.96</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="confidence-fill" style="width: 96%;"></div>
+        </div>
+      </div>
+      <div class="privacy-checklist">
+        <div class="check-item"><span class="check-icon">✓</span> Native AXTree extraction (Zero-cost)</div>
+        <div class="check-item"><span class="check-icon">✓</span> 5-Stage hard PII redactor (Auto-mask passwords/tokens)</div>
+        <div class="check-item"><span class="check-icon">✓</span> Prompt injection heuristic firewall</div>
+      </div>
+    </div>
+
+    <!-- Detected Screen Graph Explorer -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Perceived Elements (@e / @r)</h3>
+        <span class="badge badge-subtle" id="elements-count">0 items</span>
+      </div>
+      <div class="elements-list" id="elements-container">
+        <div class="empty-state">Click "Scan Screen" to extract elements</div>
+      </div>
+    </div>
+
+    <!-- Reasoning & Action Log -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Execution Log</h3>
+        <button class="clear-link" id="clear-logs-btn">Clear</button>
+      </div>
+      <div class="logs-console" id="logs-container">
+        <div class="log-line log-system">[00:00:00] PIXEL Extension Dock Initialized.</div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="app-footer">
+    <div class="footer-links">
+      <span class="footer-text">100% In-Browser Execution • 0 Cloud Data Egress • ISRO PS-26171</span>
+    </div>
+  </footer>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

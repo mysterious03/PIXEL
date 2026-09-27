@@ -22,7 +22,8 @@ const {
   generateUpdateHudStatusScript,
   generateAnnotateBoxesScript,
   generatePrivacyBlurScript,
-  generateReadModeScript
+  generateReadModeScript,
+  generateShowVlmPhotoScript
 } = require('./lib/live-hud');
 const { updateStateOverlay, clearStateOverlay } = require('./lib/overlay');
 const { buildScreenGraph } = require('./lib/graph');
@@ -63,7 +64,7 @@ async function main() {
   const registeredScriptTargets = new Set();
 
   // Multi-tab HUD synchronizer: injects and maintains the HUD across all open Chrome tabs
-  async function syncAllTabsHud() {
+  async function syncAllTabsHud(clearPending = false) {
     try {
       const list = await CDP.List({ port: 9222 });
       const pages = (list || []).filter(isControllablePageTarget);
@@ -73,6 +74,19 @@ async function main() {
           const isCurrent = (page.id === session.targetId);
           const client = isCurrent ? session.client : await CDP({ target: page.id, port: 9222 });
           if (!isCurrent) tempClient = client;
+
+          // Clear any stale pending tasks / triggers if requested (e.g. at clean startup)
+          if (clearPending) {
+            try {
+              await client.Runtime.evaluate({
+                expression: `(() => {
+                  window.__pixel_pending_task = null;
+                  window.__pixel_trigger_read = 0;
+                  window.__pixel_trigger_vlm = 0;
+                })()`
+              });
+            } catch {}
+          }
 
           // 1. Register HUD script to run automatically on any new navigation or reload
           if (!registeredScriptTargets.has(page.id)) {
@@ -101,7 +115,133 @@ async function main() {
     } catch {}
   }
 
-  await syncAllTabsHud();
+  // Visual Inspection helper: captures screenshot/crop, runs local VLM, saves photo and displays in Chrome HUD
+  async function performVlmInspection(session, { autoOpenPhoto = false } = {}) {
+    const fs = require('fs');
+    const path = require('path');
+    const { exec } = require('child_process');
+    const { globalVlmProvider } = require('./lib/vlm/provider');
+
+    await updateStateOverlay(session.client, { state: 'THINKING', message: 'Capturing crop & running On-Device VLM...' });
+    await session.client.Runtime.evaluate({
+      expression: generateUpdateHudStatusScript({
+        status: 'THINKING',
+        color: '#FF9F0A',
+        message: 'Capturing visual crop & running On-Device VLM...',
+        vlmStatus: 'Analyzing…',
+      }),
+    });
+
+    const brief = await session.extract({ inViewportOnly: true });
+    const vp = brief.viewport || { width: 1280, height: 720 };
+    
+    // Pick region (@r), or substantial element, or viewport center
+    let cropBox = null;
+    if (brief.regions && brief.regions.length > 0) {
+      const reg = brief.regions[0];
+      const b = Array.isArray(reg.bbox) ? { x: reg.bbox[0], y: reg.bbox[1], width: reg.bbox[2], height: reg.bbox[3] } : reg.bbox;
+      if (b && b.width > 0) cropBox = b;
+    } else if (brief.elements && brief.elements.length > 0) {
+      const el = brief.elements.find(e => {
+        const b = Array.isArray(e.bbox) ? { x: e.bbox[0], y: e.bbox[1], width: e.bbox[2], height: e.bbox[3] } : e.bbox;
+        return b && b.width >= 120 && b.height >= 50;
+      }) || brief.elements[0];
+      const b = Array.isArray(el?.bbox) ? { x: el.bbox[0], y: el.bbox[1], width: el.bbox[2], height: el.bbox[3] } : el?.bbox;
+      if (b && b.width > 0) cropBox = b;
+    }
+
+    // Expand crop box with generous padding so the user sees real readable page content, not a 50px micro-slice
+    const minW = Math.min(800, vp.width || 1280);
+    const minH = Math.min(500, vp.height || 720);
+    
+    let targetW = cropBox ? Math.max(minW, Math.round(cropBox.width + 160)) : minW;
+    let targetH = cropBox ? Math.max(minH, Math.round(cropBox.height + 120)) : minH;
+    let targetX = cropBox ? Math.max(0, Math.round(cropBox.x + (cropBox.width / 2) - (targetW / 2))) : Math.round(((vp.width || 1280) - targetW) / 2);
+    let targetY = cropBox ? Math.max(0, Math.round(cropBox.y + (cropBox.height / 2) - (targetH / 2))) : Math.round(((vp.height || 720) - targetH) / 2);
+
+    const paddedCrop = {
+      x: Math.max(0, Math.min(targetX, Math.max(0, (vp.width || 1280) - targetW))),
+      y: Math.max(0, Math.min(targetY, Math.max(0, (vp.height || 720) - targetH))),
+      width: Math.min(targetW, vp.width || 1280),
+      height: Math.min(targetH, vp.height || 720),
+    };
+
+    let imageBase64;
+    try {
+      const shot = await session.client.Page.captureScreenshot({
+        format: 'jpeg',
+        quality: 90,
+        clip: { x: paddedCrop.x, y: paddedCrop.y, width: paddedCrop.width, height: paddedCrop.height, scale: 1 },
+        captureBeyondViewport: true,
+      });
+      imageBase64 = shot.data;
+    } catch (err) {
+      const shot = await session.client.Page.captureScreenshot({ format: 'jpeg', quality: 85 });
+      imageBase64 = shot.data;
+    }
+
+    const result = await globalVlmProvider.describe({
+      imageBase64,
+      mimeType: 'image/jpeg',
+      cropBox: paddedCrop,
+      viewport: vp,
+      prompt: 'Identify all interactive buttons, text fields, and visual charts in this crop.',
+    });
+
+    const runsDir = path.join(__dirname, 'runs');
+    fs.mkdirSync(runsDir, { recursive: true });
+    const latestCropPath = path.join(runsDir, 'latest-vlm-crop.jpg');
+    const imageBuffer = Buffer.from(imageBase64, 'base64');
+    fs.writeFileSync(latestCropPath, imageBuffer);
+    try { fs.writeFileSync(path.join(__dirname, 'latest-vlm-crop.jpg'), imageBuffer); } catch {}
+    if (process.env.USERPROFILE) {
+      try { fs.writeFileSync(path.join(process.env.USERPROFILE, 'latest-vlm-crop.jpg'), imageBuffer); } catch {}
+    }
+
+    const cropDimStr = `${paddedCrop.width}×${paddedCrop.height}px`;
+    const savings = result.cropMetrics?.savingsPercent || 85;
+    const desc = result.description || result.summary || 'On-Device visual element analyzed';
+
+    // Display the photo in the Chrome Dynamic Island HUD!
+    await session.client.Runtime.evaluate({
+      expression: generateShowVlmPhotoScript({
+        imageBase64,
+        mimeType: 'image/jpeg',
+        model: `${result.model} (${result.tier})`,
+        savingsPercent: savings,
+        cropDimensions: cropDimStr,
+        description: desc,
+        badge: 'ON-DEVICE VLM',
+      }),
+    });
+
+    await updateStateOverlay(session.client, { state: 'OBSERVING', message: `VLM: ${desc.slice(0, 50)}...` });
+    await session.client.Runtime.evaluate({
+      expression: generateUpdateHudStatusScript({
+        status: 'READY',
+        color: '#30D158',
+        message: `📷 VLM Analyzed: ${desc.slice(0, 60)}`,
+        vlmStatus: 'Active ✓',
+      }),
+    });
+
+    console.log(`\x1b[32m✓ Local VLM Model:\x1b[0m ${result.model} (${result.tier})`);
+    console.log(`\x1b[32m✓ Runtime:\x1b[0m ${result.runtime}`);
+    console.log(`\x1b[32m✓ Latency:\x1b[0m ${result.totalLatencyMs}ms`);
+    console.log(`\x1b[32m✓ Pixel Reduction:\x1b[0m ${savings}% bandwidth saved`);
+    console.log(`\x1b[32m✓ Confidence:\x1b[0m ${result.confidence} -> Action: ${result.confidence > 0.85 ? 'LOCAL_CONFIRM' : 'ESCALATE'}`);
+    console.log(`\x1b[32m✓ Photo Saved to Disk:\x1b[0m file:///${latestCropPath.replace(/\\/g, '/')}`);
+    console.log(`\x1b[32m✓ Photo Displayed:\x1b[0m Embedded directly in Chrome Dynamic Island HUD on active tab! (Click photo to zoom)`);
+
+    if (autoOpenPhoto && process.platform === 'win32') {
+      exec(`start "" "${latestCropPath}"`, () => {});
+    }
+
+    return { latestCropPath, result };
+  }
+
+  // Clear any stale pending tasks from earlier sessions at initial startup
+  await syncAllTabsHud(true);
   console.log('✓ Injected PIXEL Interactive Control Dock across Chrome tabs.');
   console.log('\n--- Controls Available ---');
   console.log('  1. On-Screen: Click "👁️ Read Screen" in the floating dock in Chrome.');
@@ -113,6 +253,7 @@ async function main() {
   let lastHandledRead = 0;
   let lastHandledBlur = 0;
   let lastHandledReadMode = 0;
+  let lastHandledVlm = 0;
   let lastTabSyncTime = 0;
   let isExecuting = false;
 
@@ -147,6 +288,7 @@ async function main() {
           triggerRead: window.__pixel_trigger_read || 0,
           triggerPrivacyBlur: window.__pixel_trigger_privacy_blur || null,
           triggerReadMode: window.__pixel_trigger_read_mode || null,
+          triggerVlm: window.__pixel_trigger_vlm || 0,
           pendingTask: window.__pixel_pending_task || null
         })`,
         returnByValue: true,
@@ -168,6 +310,8 @@ async function main() {
                 returnByValue: true,
               });
               if (opRes.result?.value?.pendingTask) {
+                // Clear on background tab immediately so it doesn't re-trigger
+                await tempClient.Runtime.evaluate({ expression: `window.__pixel_pending_task = null;` }).catch(() => {});
                 // User submitted a task from another tab! Switch to that tab and bring to front
                 await session.switchToTab(op.id, op);
                 await session.client.Page.bringToFront().catch(() => {});
@@ -233,6 +377,17 @@ async function main() {
           expression: generateReadModeScript({ active: val.triggerReadMode.active }),
         });
         console.log(`\n[PIXEL Live] 📖 Read Mode ${val.triggerReadMode.active ? 'activated' : 'deactivated'}.`);
+      }
+
+      // Handle on-screen "Test VLM" trigger
+      if (val.triggerVlm && val.triggerVlm > lastHandledVlm && !isExecuting) {
+        lastHandledVlm = val.triggerVlm;
+        console.log(`\n\x1b[35m[On-Device VLM]\x1b[0m "Test VLM" triggered from Chrome HUD on tab: "${session.targetTitle || ''}"...`);
+        try {
+          await performVlmInspection(session, { autoOpenPhoto: true });
+        } catch (err) {
+          console.error(`\x1b[31m[VLM Error]\x1b[0m ${err.message}`);
+        }
       }
 
       // Handle on-screen "Run Task" trigger
@@ -378,37 +533,11 @@ async function main() {
         console.log('==============================================\n');
       } else if (cmd === 'vlm') {
         console.log(`\n\x1b[35m[On-Device VLM]\x1b[0m Capturing visual region from tab "${session.targetTitle}" for local inference...`);
-        const { globalVlmProvider } = require('./lib/vlm/provider');
-        const brief = await session.extract({ inViewportOnly: true });
-        const firstEl = brief.elements?.[0];
-        const cropBox = firstEl?.bbox ? { x: Math.max(0, firstEl.bbox[0]), y: Math.max(0, firstEl.bbox[1]), width: Math.max(10, firstEl.bbox[2]), height: Math.max(10, firstEl.bbox[3]) } : { x: 50, y: 50, width: 300, height: 180 };
-        
-        // Capture screenshot of live Chrome tab
-        let imageBase64;
         try {
-          const shot = await session.client.Page.captureScreenshot({
-            format: 'jpeg',
-            quality: 85,
-            clip: { x: cropBox.x, y: cropBox.y, width: cropBox.width, height: cropBox.height, scale: 1 },
-          });
-          imageBase64 = shot.data;
+          await performVlmInspection(session, { autoOpenPhoto: true });
         } catch (err) {
-          const shot = await session.client.Page.captureScreenshot({ format: 'jpeg', quality: 80 });
-          imageBase64 = shot.data;
+          console.error(`\x1b[31m[VLM Error]\x1b[0m ${err.message}`);
         }
-
-        const result = await globalVlmProvider.describe({
-          imageBase64,
-          mimeType: 'image/jpeg',
-          cropBox,
-          viewport: { width: 1920, height: 1080 },
-          prompt: 'Identify all interactive buttons, text fields, and visual charts in this crop.',
-        });
-        console.log(`\x1b[32m✓ Local VLM Model:\x1b[0m ${result.model} (${result.tier})`);
-        console.log(`\x1b[32m✓ Runtime:\x1b[0m ${result.runtime}`);
-        console.log(`\x1b[32m✓ Latency:\x1b[0m ${result.totalLatencyMs}ms`);
-        console.log(`\x1b[32m✓ Pixel Reduction:\x1b[0m ${result.cropMetrics?.savingsPercent}% bandwidth saved vs full screenshot`);
-        console.log(`\x1b[32m✓ Confidence:\x1b[0m ${result.confidence} -> Action: ${result.confidence > 0.85 ? 'LOCAL_CONFIRM' : 'ESCALATE'}\n`);
       } else if (cmd === 'privacy') {
         const { detectTextPii } = require('./lib/privacy');
         const brief = await session.extract({ inViewportOnly: true });

@@ -22,7 +22,7 @@
   <b>A frugal, privacy-first, on-device perceptual runtime that empowers autonomous browser agents to navigate, parse, and act across complex web pages with near-zero API cost and zero cloud data egress.</b>
 </p>
 
-[Quickstart](#-quickstart-guide) • [Architecture](#-governing-architecture) • [Features](#-core-innovations) • [Benchmarks](#-empirical-benchmark-results) • [VS Code Setup](#-running-in-vs-code) • [SIH Verification](#-sih-acceptance-test-suite)
+[Quickstart](#-quickstart-guide) • [Chrome Extension & Deployment](DEPLOYMENT.md) • [Architecture](#-governing-architecture) • [Features](#-core-innovations) • [Benchmarks](#-empirical-benchmark-results) • [VS Code Setup](#-running-in-vs-code) • [SIH Verification](#-sih-acceptance-test-suite)
 
 ---
 </div>

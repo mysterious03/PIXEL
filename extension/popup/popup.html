@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PIXEL ODVPA</title>
+  <link rel="stylesheet" href="popup.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="popup-container">
+    <div class="header">
+      <div class="brand">
+        <div class="logo">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="9" stroke="url(#pgrad)" />
+            <circle cx="12" cy="12" r="3" fill="#06b6d4" />
+            <defs>
+              <linearGradient id="pgrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#6366f1" />
+                <stop offset="100%" stop-color="#06b6d4" />
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <div>
+          <h1 class="title">PIXEL ODVPA</h1>
+          <span class="sub">On-Device Browser Agent</span>
+        </div>
+      </div>
+      <span class="badge" id="popup-status">Active</span>
+    </div>
+
+    <div class="telemetry-bar">
+      <div class="telemetry-pill">
+        <span class="pill-dot green"></span>
+        <span>Zero-Token Fast Path</span>
+      </div>
+      <div class="telemetry-pill">
+        <span class="pill-dot blue"></span>
+        <span id="backend-indicator">Studio :3000</span>
+      </div>
+    </div>
+
+    <div class="actions-list">
+      <button class="btn btn-primary" id="open-sidepanel-btn">
+        <span>🚀</span> Open Agent Side Panel Dock
+      </button>
+
+      <button class="btn btn-secondary" id="toggle-inpage-hud-btn">
+        <span>🏝️</span> Toggle In-Page Island HUD
+      </button>
+
+      <button class="btn btn-secondary" id="scan-page-btn">
+        <span>👁️</span> Scan Elements & Show Boxes
+      </button>
+    </div>
+
+    <div class="footer">
+      <a href="http://localhost:3000" target="_blank" class="link">Studio Dashboard ↗</a>
+      <span>•</span>
+      <span class="version">v2.0.0 (SIH PS-26171)</span>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

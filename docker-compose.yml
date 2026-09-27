@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  pixel-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: pixel-odvpa:2.0.0
+    container_name: pixel-studio
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+    volumes:
+      - ./logs:/app/logs
+      - ./runs:/app/runs
+      - ./lora-adapters:/app/lora-adapters
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/benchmark"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

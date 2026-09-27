@@ -37,6 +37,24 @@ function usageError(message) {
 // set (everything else stays undefined), so deepMerge leaves config-file values
 // intact for unspecified flags.
 function parseArgs(argv) {
+  const first = argv[0];
+  if (first === 'ext' || first === 'extension' || first === 'install') {
+    require('./tools/install-extension');
+    process.exit(0);
+  }
+  if (first === 'studio') {
+    require('./studio');
+    return { isSubcommand: true };
+  }
+  if (first === 'live') {
+    require('./live');
+    return { isSubcommand: true };
+  }
+  if (first === 'pack') {
+    require('./tools/package-extension');
+    process.exit(0);
+  }
+
   const args = { task: null };
   const override = { executor: {} };
   const positional = [];
@@ -68,9 +86,14 @@ function parseArgs(argv) {
 }
 
 function printHelp() {
-  console.log(`Usage: node agent.js [options] <task>
+  console.log(`PIXEL ODVPA — On-Device Visual Perception Browser Agent (ISRO / SIH 2026)
 
-All knobs live in browser-agent.config.json. CLI flags below override the file.
+Commands:
+  pixel ext                    Launch Chrome with the PIXEL extension pre-loaded
+  pixel studio                 Start the Visual Studio Dashboard on http://localhost:3000
+  pixel live                   Start the real-time multi-tab on-screen live agent
+  pixel pack                   Build the production .zip extension package
+  pixel [options] <task>       Run autonomous browser agent with a specific task
 
 Options:
   --task, -t <string>          The task for the agent (or pass as positional)
@@ -179,6 +202,7 @@ function buildHandoff(runArtifact, config = {}) {
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
+  if (args.isSubcommand) return;
   if (!args.task) {
     console.error('error: no task provided (use --task "..." or a positional argument)');
     printHelp();
